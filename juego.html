@@ -1,0 +1,249 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+	<meta charset="UTF-8" />
+    <title>Flappy</title>
+	<script type="text/javascript" src="js/phaser.min.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+
+var game = new Phaser.Game(1200, 600, Phaser.AUTO, '', { preload: preload, create: create, update: update });
+
+
+
+    function preload() {
+        game.load.image('fondo', 'assets/fondo.png'); //cargamos la imagen de fondo
+        game.load.image('bloque', 'assets/bloque.png') //cargamos el bloque
+        game.load.image('cubo','assets/cubo.png'); //cargamos lo que van a ser los obstaculos
+        game.load.image('oro', 'assets/oro.png'); //cargamos la imagen de la bolsa de oro    
+        game.load.spritesheet('ave', 'assets/ave.png', 110.02, 101.33, 14); //Cargamos el spritesheet del ave con los parametros de medidas correctamente aunque falta ver porque no se pueden cargar de la 5 en adelante en la animación.
+        game.load.spritesheet('explosion','assets/explosion.png', 100,100,9);
+
+        this.load.audio('audio','assets/bounce.mp3');//Cargamos el sonido cuando acumula los diamantes
+        this.load.audio('audio2','assets/gameover.mp3');//Cargamos el sonido cuando pierde
+        this.load.audio('musica','assets/musica.mp3'); //Cargamos la musica del juego
+
+        //Cargamos las imagenes que van a conformar el fondo
+        game.load.image('castillo', 'assets/castillo.png');
+        game.load.image('fondo2', 'assets/fondoArboles.png');
+        game.load.image('arbol', 'assets/arbol.png');
+
+        
+    }
+
+    var jugador;
+    var cursors;
+    var timer;
+    var score = 0;
+    var scoreText;
+    var reiniciarJuego;
+    var sonido;
+    var sonido2;
+    var gameover;
+    var castillo;
+    var musica;
+    var velocidad=1;
+
+
+
+    function create() {
+        //  Habilitamos la física
+        game.physics.startSystem(Phaser.Physics.ARCADE);
+
+        //  Agregamos el fondo
+        game.add.sprite(0, 0, 'fondo');
+
+        //Creamos un grupo para el fondo y le habilitamos la fisica.
+        fondo=game.add.group();
+        fondo.enableBody=true;
+
+
+//En las dos repetitivas siguientes creo los fondos con velocidad para simular movimiento
+for (var i = -2; i < 12; i++)
+    {
+        //  Creamos un fondo
+        sombra=fondo.create(i*600,200,'fondo2');
+
+        //lo achicamos ya que es muy grande el tamaño
+        sombra.scale.setTo(0.7,0.7);
+
+        //Le damos velocidad para simular movimiento
+        sombra.body.velocity.x=-10;
+    }
+
+
+for (var i = -2; i < 12; i++){
+        arbol=fondo.create(i*800,300,'arbol');
+        arbol.body.velocity.x=-50;
+    }
+
+       
+        //Creamos un castillo al inicio del juego
+        cast=fondo.create(-100,0,'castillo');
+        cast.body.velocity.x=-20;
+
+        //agregamos el sonido
+        sonido= game.add.audio('audio');
+
+        //agregamos el sinido de gameover;
+        sonido2=game.add.audio('audio2');
+
+        musica=game.add.audio('musica');
+        musica.play(); //Empieza la reproduccion
+
+
+
+
+        // El ave
+        jugador = game.add.sprite(32, game.world.height - 400, 'ave');
+
+        //  Habilitamos la fisica en el pájaro
+        game.physics.arcade.enable(jugador);
+
+        //Ajustamos propiedades de la física
+        jugador.body.bounce.y = 0.3; //el rebote
+        jugador.body.gravity.y = 500; //La gravedad
+        jugador.body.collideWorldBounds = true; //Que rebote contra los bordes
+
+        //  Agregamos las animaciones al ave
+        jugador.animations.add('vuela', [0,1,2,3,4,5,6,7,8,9,10,11,12,13], 50, true); //El ultimo parametro es true para que lo haga cíclicamente
+
+        jugador.animations.add('explosion', [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20], 50, true);
+
+        //  declaramos los controles
+        cursors = game.input.keyboard.createCursorKeys();
+
+        // Creamos un grupo para los cubos
+        cubos = game.add.group();
+        cubos.enableBody = true;  //Habilitamos la fisica
+
+        // Creamos un grupo para los oros
+        oros = game.add.group();
+        oros.enableBody = true;  //Habilitamos la fisica
+
+        // cada 2 segundos se crea un nuevo obstaculo
+        this.timer = this.game.time.events.loop(2000, crearColumnas);  
+
+        //  El puntaje
+        scoreText = game.add.text(16, 30, 'Puntaje: 0', { fontSize: '50px', fill: '#1585AA' });
+        
+    }
+
+    function update() {
+        //Hacemos que rebote el ave contra los cubos
+        //game.physics.arcade.collide(jugador,cubos);
+        game.physics.arcade.collide(jugador,cubos,reiniciar, null, this);
+        game.physics.arcade.overlap(jugador,oros,sumarOro, null, this);
+
+       //  Reseteamos el movimiento luego de una acción
+        jugador.body.velocity.x = 0;
+
+        
+
+        if  (cursors.up.isDown){
+                //  Se desplaza hacia arriba
+                jugador.body.velocity.y = -150;
+                jugador.animations.play('vuela'); //aplicamos la animación de volar
+            }
+        else { // sino sube, baja
+            jugador.animations.stop(); //paramos la animación
+
+            jugador.frame = 1; //Si no dejamos el sprite uno.
+        }
+
+        if (cursors.left.isDown)
+        {
+             //  Move to the right
+            jugador.body.velocity.x = -150;
+
+            jugador.animations.play('vuela');
+        }
+        else if (cursors.right.isDown)
+        {
+            //  Move to the right
+            jugador.body.velocity.x = 150;
+
+            jugador.animations.play('vuela');
+        }
+
+
+    }
+
+    //En esta funcion creamos las columnas que tiene que atravezar el pajaro
+    function crearColumnas(){
+        var piso=Math.floor(Math.random()*5)+1; //Seleccionamos el piso del hueco aleatoriamente 
+        agregarOro(1200,piso*60+70,this.velocidad); //Agregamos el diamante en el hueco
+        for(var i=0;i<12;i++){
+            if (i!= piso && i!= piso+1 && i!=piso+2){
+                agregarCubo(1200,i*60+10,this.velocidad); //Creamos la columna de bloques
+            }
+
+        }
+        this.velocidad+=0.05;
+    }
+
+    //esta funcion crea un cubo en la posicion (x,y)
+    function agregarCubo(x,y,velocidad){
+        var cubo=cubos.create(x,y,'cubo');
+        cubo.body.velocity.x=-300*velocidad;
+        cubo.checkWorldBounds = true;
+        cubo.outOfBoundsKill = true; //Con esto al desaparacer del juego se elimina
+        console.log("desaparece"); //Sentencia para sacar por consola... de control.
+    }
+
+    //funcion para ubicar los diamantes
+    function agregarOro(x,y,velocidad){
+        var oro=oros.create(x,y,'oro');
+        oro.body.velocity.x=-300*velocidad;
+        oro.checkWorldBounds = true;
+        oro.outOfBoundsKill = true;
+    }
+
+    //Este metodo tendría que reiniciar el juego pero no lo hace =S
+    function reiniciar(jugador,cubo){
+
+            musica.stop();
+            sonido2.play(); //reproducimos el sonido de gameover
+            reiniciarJuego = game.add.text(300, 300, '¡¡¡Presionar CTRL + F5 para jugar otra vez!!!', { fontSize: '1000px', fill: '#F70505' });    
+            game.time.events.loop(20,perdio); //Hago esto porque si pongo game.exit() directamente no sale el cartel de apretar F5.
+    }
+
+    function perdio(){
+        
+        jugador.kill();
+
+    }
+
+
+    function sumarOro (jugador, oro) {
+    
+    // Eiminamos el oro que juntamos
+    oro.kill(); //eliminamos los diamantes
+    sonido.play();//reproducimos el sonido de gameover
+
+    //Sumamos el oro obtenido al score
+    score += 10;
+    scoreText.text = 'Score: ' + score;
+    
+    }
+
+
+
+
+
+
+
+
+
+
+</script>
+
+</body>
+</html>
